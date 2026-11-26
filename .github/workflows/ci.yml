@@ -21,7 +21,7 @@ jobs:
       - name: Verificar contrato Python <-> TypeScript
         run: python -m backend.verificar_contrato
       - name: Ejecutar suite pytest
-        run: pytest -v
+        run: python -m pytest -v
       - name: Validar contrato de despliegue backend y README
         run: |
           python -c "import backend.main as m; assert hasattr(m, 'app'); assert any(getattr(r, 'path', '') == '/health' for r in m.app.routes)"
