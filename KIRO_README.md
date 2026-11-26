@@ -9,7 +9,7 @@
 
 - **Nombre del proyecto:** `Queryback`
 - **Evento:** Hackathon NFL Big Data Bowl UNAM / AWS.
-- **Objetivo:** Análisis de datos, visualización interactiva y consultas en lenguaje natural impulsadas por IA.
+- **Objetivo:** Hoja de Protección para el coordinador ofensivo: tiempo seguro del QB, lado de la presión y 3 claves por partido (ver `README.md` y `.kiro/steering/equipo.md`).
 - **Arquitectura:**
   - **Backend:** FastAPI (Python 3.12) sirviendo endpoints analíticos bajo `/api/...`.
   - **Frontend:** Dashboard SPA en React 18, TypeScript, Vite y Tailwind CSS (consumiendo datos con Recharts).
