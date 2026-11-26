@@ -91,6 +91,19 @@ Las vistas están ordenadas por prioridad táctica durante la semana de preparac
 
 Los selectores y la pestaña activa se sincronizan con la URL (`?ofensiva=TB&rival=CLE&vista=partido`) para compartir reportes directamente y conservar estado al recargar.
 
+<details>
+<summary>Ver capturas limpias de las otras 4 pestañas (TB vs CLE con datos reales)</summary>
+
+| Situación (`3º largo`: 59%) | Cambiar jugada (`Play action` + `Rollout`) |
+|---|---|
+| ![Situación TB vs CLE](docs/capturas/situacion.png) | ![Cambiar jugada TB vs CLE](docs/capturas/cambiar.png) |
+
+| Sin su estrella (`Con Garrett` vs `Sin Garrett`) | Repetición (`Sack` a los `2.4 s`) |
+|---|---|
+| ![Sin su estrella TB vs CLE](docs/capturas/estrella.png) | ![Repetición TB vs CLE](docs/capturas/repeticion.png) |
+
+</details>
+
 ---
 
 ## Metodología analítica
@@ -303,10 +316,12 @@ python -m backend.probar_api   # con uvicorn arriba: prueba 6 rutas, errores 400
 │   ├── features/                  # partido · situacion · cambiar · estrella · repeticion
 │   ├── components/                # Gráficas Recharts y componentes UI accesibles
 │   └── lib/                       # Formateo es-MX, semáforo y hook usarRecurso
+├── docs/capturas/                 # Capturas limpias de Situación, Cambiar, Estrella y Repetición
 ├── prompts/                       # Prompts A–D usados durante la construcción con Kiro
 ├── scripts/
 │   └── descargar_datos.py         # Descarga y verificación automática de data/
 ├── tests/
+│   ├── conftest.py                # Asegura la raíz del repo en sys.path
 │   └── test_motor_y_reportes.py   # Pruebas unitarias y de endpoints FastAPI (pytest)
 ├── KIRO_README.md                 # Guía técnica de stack y reglas AWS
 ├── LEEME.md                       # Instrucciones del kit Kiro de origen
