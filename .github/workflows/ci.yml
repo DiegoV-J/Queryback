@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.12"
+          cache: pip
+          cache-dependency-path: .hackathon/requirements.lock
+      - name: Instalar dependencias bloqueadas
+        run: pip install --require-hashes -r .hackathon/requirements.lock
+      - name: Verificar contrato Python <-> TypeScript
+        run: python -m backend.verificar_contrato
+      - name: Ejecutar suite pytest
+        run: pytest -v
+      - name: Validar contrato de despliegue backend y README
+        run: |
+          python -c "import backend.main as m; assert hasattr(m, 'app'); assert any(getattr(r, 'path', '') == '/health' for r in m.app.routes)"
+          test -s README.md
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - name: Instalar dependencias frontend
+        run: npm --prefix dashboard ci
+      - name: Typecheck y build Vite
+        run: |
+          npm --prefix dashboard run typecheck
+          npm --prefix dashboard run build
+      - name: Validar reglas estáticas de rutas (sin localhost ni /api/)
+        run: |
+          python - << 'EOF'
+          import pathlib, re, sys
+          bad = []
+          for p in pathlib.Path("dashboard/src").rglob("*"):
+              if p.is_file() and p.suffix in {".ts", ".tsx", ".js", ".jsx", ".html"}:
+                  txt = p.read_text(encoding="utf-8", errors="ignore")
+                  if re.search(r"https?://(localhost|127\.0\.0\.1)", txt) or "fetch('/api" in txt or 'fetch("/api' in txt:
+                      bad.append(p.as_posix())
+          if bad:
+              print("Rutas inválidas encontradas en:", bad)
+              sys.exit(1)
+          print("OK: rutas relativas limpias en dashboard/src")
+          EOF

@@ -36,7 +36,7 @@ export interface Amenaza {
 export interface Bloqueador {
   nombre: string
   posicion: string
-  pierde_pct: number
+  pierde_pct: number | null
 }
 
 export interface Clave {

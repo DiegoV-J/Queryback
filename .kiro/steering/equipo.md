@@ -69,7 +69,7 @@ Coordenadas relativas al QB en el snap, normalizadas para que el ataque vaya hac
     "qb": {"nombre": str, "lanzamiento_s": float, "diferencia_s": float},
     "lados": {"izquierda": int, "centro": int, "derecha": int},
     "amenaza": {"nombre": str, "gana_pct": float|null, "lado": "izquierda|centro|derecha"},
-    "bloqueador": {"nombre": str, "posicion": str, "pierde_pct": float},
+    "bloqueador": {"nombre": str, "posicion": str, "pierde_pct": float|null},
     "claves": [{"accion": str, "dato": str}],
     "contexto": {"presion": [int, int], "tercer_down": [int, int], "blitz": [int, int]} }   (cada par = [rival, liga])
 - GET api/situacion?rival=&sit=a|c|m|l -> {"presion_pct", "presion_liga_pct", "blitz_pct", "blitz_liga_pct",

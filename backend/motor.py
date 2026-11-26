@@ -167,8 +167,9 @@ def _tracking(carpeta: Path, roles: pd.DataFrame, t0: float) -> tuple[pd.DataFra
     return marcas, posiciones
 
 
-def cargar(carpeta: Path = DATA) -> Datos:
+def cargar(carpeta: Path | None = None) -> Datos:
     """Lee los CSV una sola vez y devuelve las tablas en memoria."""
+    carpeta = DATA if carpeta is None else carpeta
     t0 = time.perf_counter()
     print("[motor] Leyendo plays, PFF, partidos y jugadores...", flush=True)
     plays, pff, games, nombres = _leer_tablas(carpeta)

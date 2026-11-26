@@ -43,7 +43,7 @@ class Amenaza(BaseModel):
 class Bloqueador(BaseModel):
     nombre: str
     posicion: str
-    pierde_pct: float
+    pierde_pct: float | None
 
 
 class Clave(BaseModel):
