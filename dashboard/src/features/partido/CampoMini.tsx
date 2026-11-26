@@ -85,13 +85,13 @@ export function CampoMini({ lados, amenaza }: Props) {
               >
                 {fmtPorcentaje(lados[lado])}
               </text>
-              {esPeligroso && (
+              {lado === amenaza.lado && (
                 <text
                   x={origen.x + (lado === 'izquierda' ? 6 : lado === 'derecha' ? -6 : 0)}
                   y={origen.y + 8}
                   textAnchor={lado === 'izquierda' ? 'start' : lado === 'derecha' ? 'end' : 'middle'}
                   fontSize="12"
-                  fill={COLOR.rojo}
+                  fill={esPeligroso ? COLOR.rojo : COLOR.tinta}
                 >
                   {apellido(amenaza.nombre)}
                 </text>

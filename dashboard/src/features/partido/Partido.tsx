@@ -7,7 +7,7 @@ import type { Partido as DatosPartido } from '../../api/types'
 import { EstadoError } from '../../components/ui/EstadoError'
 import { EsqueletoPartido } from '../../components/ui/Esqueleto'
 import { Pastilla } from '../../components/ui/Pastilla'
-import { apellido, fmtConSigno, fmtPorcentajeDecimal, fmtSegundos } from '../../lib/format'
+import { apellido, fmtConSigno, fmtPorcentajeDecimalOpc, fmtSegundos } from '../../lib/format'
 import { CLASE_TEXTO, TEXTO_NIVEL } from '../../lib/nivel'
 import { usarRecurso } from '../../lib/usarRecurso'
 import { CampoMini } from './CampoMini'
@@ -72,7 +72,7 @@ export function Partido({ ofensiva, rival }: Props) {
             <span className="text-apagado">Lo cuida: </span>
             <span className="font-semibold">{apellido(bloqueador.nombre)}</span>{' '}
             <span className="text-apagado">({bloqueador.posicion})</span> ·{' '}
-            <span className="tabular-nums">{fmtPorcentajeDecimal(bloqueador.pierde_pct)}</span>{' '}
+            <span className="tabular-nums">{fmtPorcentajeDecimalOpc(bloqueador.pierde_pct)}</span>{' '}
             <span className="text-apagado">de duelos perdidos</span>
           </p>
         </div>

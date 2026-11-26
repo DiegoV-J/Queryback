@@ -38,11 +38,15 @@ _candado = threading.Lock()
 # ----------------------------------------------------------------------------- utilidades
 def _pct(fraccion: float) -> int:
     """Fracción 0-1 -> porcentaje entero 0-100."""
+    if math.isnan(fraccion):
+        return 0
     return int(math.floor(float(fraccion) * 100 + 0.5))
 
 
 def _dec(valor: float) -> float:
     """Redondeo a 1 decimal."""
+    if math.isnan(valor):
+        return 0.0
     return math.floor(float(valor) * 10 + 0.5) / 10
 
 
@@ -128,12 +132,18 @@ def _defensas(j: pd.DataFrame, d: motor.Datos) -> dict[str, dict]:
 
     out = {}
     for eq, g in j.groupby("defensa"):
-        star = amenaza[eq]
+        star = amenaza.get(eq)
+        if star is None:
+            rush_eq = d.roles.loc[(d.roles["rol"] == "R") & (d.roles["defensa"] == eq)]
+            if len(rush_eq):
+                star = int(rush_eq["nflId"].value_counts().index[0])
         conteo_lados = g.loc[g["presion"], "lado"].value_counts()
         lados = _reparto(conteo_lados)
         total_pres = max(int(conteo_lados.sum()), 1)
         fuerte = "izquierda" if lados["izquierda"] >= lados["derecha"] else "derecha"
         g12 = g.loc[g["down"].isin([1, 2])]
+        amenaza_n = int(conteo.loc[conteo["defensa"] == eq, "n"].iloc[0]) if eq in amenaza else 0
+        lados_star = pres.loc[(pres["defensa"] == eq) & (pres["presionador"] == star), "lado"] if star is not None else pd.Series(dtype="object")
         out[eq] = {
             "n": len(g),
             "reloj": g["reloj_f"].to_numpy("float64"),
@@ -146,9 +156,9 @@ def _defensas(j: pd.DataFrame, d: motor.Datos) -> dict[str, dict]:
             "fuerte": fuerte,
             "fuerte_frac": int(conteo_lados.get(fuerte, 0)) / total_pres,
             "amenaza": star,
-            "amenaza_presiones": int(conteo.loc[conteo["defensa"] == eq, "n"].iloc[0]),
-            "lado_amenaza": _moda_lado(pres.loc[(pres["defensa"] == eq) & (pres["presionador"] == star), "lado"]),
-            "gana": gana.get(star),
+            "amenaza_presiones": amenaza_n,
+            "lado_amenaza": _moda_lado(lados_star) if len(lados_star) else "centro",
+            "gana": gana.get(star) if star is not None else None,
             "pa_n": int(g12["pa"].sum()),
             "pa_delta": _media(g12.loc[g12["pa"], "yardas"]) - _media(g12.loc[~g12["pa"], "yardas"]),
         }
@@ -206,17 +216,18 @@ def _claves(o: dict, dv: dict, L: dict, Z: pd.DataFrame, bloq: dict, nombre) -> 
     """Candidatas y puntajes de equipo.md; se quedan las de puntaje > 0.3, de mayor a menor, máximo 3."""
     cands: list[tuple[float, int, str, str]] = []
     ts_f, tsl_f = dv["ts_f"], L["ts_f"]
-    ts, tsl = ts_f / 10, tsl_f / 10
+    lz_d = o["lanz_d"]
 
     # 1. Suelta antes de {ts} s
-    lz_d = o["lanz_d"]
-    p_rv = _pct(np.mean(dv["reloj"] <= lz_d))
-    p_lg = _pct(np.mean(L["reloj"] <= lz_d))
-    s1 = -_z(ts, Z["ts"]) + max(0, lz_d - ts_f) / 10 / 0.3
-    cands.append((s1, 1, f"Suelta antes de {ts:.1f} s", f"A {lz_d / 10:.1f} s ya llegan en {p_rv}% · liga {p_lg}%"))
+    if ts_f is not None:
+        ts = ts_f / 10
+        p_rv = _pct(np.mean(dv["reloj"] <= lz_d))
+        p_lg = _pct(np.mean(L["reloj"] <= lz_d))
+        s1 = -_z(ts, Z["ts"]) + max(0, lz_d - ts_f) / 10 / 0.3
+        cands.append((s1, 1, f"Suelta antes de {ts:.1f} s", f"A {lz_d / 10:.1f} s ya llegan en {p_rv}% · liga {p_lg}%"))
 
     # 2. Ayuda extra contra {amenaza}
-    if dv["gana"] is not None:
+    if dv["gana"] is not None and dv["amenaza"] is not None:
         s2 = _z(dv["gana"], Z["gana"])
         if bloq["pierde_pct"] is not None:
             s2 += (bloq["pierde_pct"] - 6) / 3
@@ -225,12 +236,12 @@ def _claves(o: dict, dv: dict, L: dict, Z: pd.DataFrame, bloq: dict, nombre) -> 
                       f"liga {_dec(L['duelo'] * 100):.1f}%"))
 
     # 3. Usa play action en 1º y 2º
-    if dv["pa_n"] >= MIN_JUGADAS and _dec(dv["pa_delta"]) >= 0.5:
+    if dv["pa_n"] >= MIN_JUGADAS and not math.isnan(dv["pa_delta"]) and _dec(dv["pa_delta"]) >= 0.5:
         cands.append((_z(dv["pa_delta"], Z["pa_delta"]), 3, "Usa play action en 1º y 2º",
                       f"Contra ellos suma {_signo(dv['pa_delta'])} yd por jugada · liga {_signo(L['pa_delta'])} yd"))
 
     # 4. En 3er down, suelta en menos de 2 s
-    if _pct(dv["tercer"]) > _pct(L["tercer"]):
+    if not math.isnan(dv["tercer"]) and not math.isnan(L["tercer"]) and _pct(dv["tercer"]) > _pct(L["tercer"]):
         cands.append((_z(dv["tercer"], Z["tercer"]), 4, "En 3er down, suelta en menos de 2 s",
                       f"Presionan {_pct(dv['tercer'])}% en 3er down · liga {_pct(L['tercer'])}%"))
 
@@ -252,8 +263,9 @@ def _claves(o: dict, dv: dict, L: dict, Z: pd.DataFrame, bloq: dict, nombre) -> 
                       f"{dv['lados'][fuerte]}% de su presión llega por la {fuerte} · liga {L['lados'][fuerte]}%"))
 
     # 8. Hay tiempo: busca el pase largo
-    if ts_f > tsl_f:
-        sd = float(Z["ts"].std(ddof=0))
+    if ts_f is not None and tsl_f is not None and ts_f > tsl_f:
+        ts, tsl = ts_f / 10, tsl_f / 10
+        sd = float(Z["ts"].dropna().std(ddof=0)) if len(Z["ts"].dropna()) else 0.0
         if sd > 0:
             cands.append(((ts - tsl) / sd, 8, "Hay tiempo: busca el pase largo",
                           f"Tiempo seguro {ts:.1f} s · liga {tsl:.1f} s"))
@@ -285,8 +297,12 @@ def _situacion(dv_jugadas: pd.DataFrame, s: str, L: dict) -> dict:
 def _efectos(j: pd.DataFrame) -> dict:
     """Multiplicador de presión y delta de yardas de cada opción contra su base, con toda la liga."""
     def efecto(opcion: pd.Series, base: pd.Series) -> tuple[float, float]:
-        mult = _media(j.loc[opcion, "presion"]) / _media(j.loc[base, "presion"])
-        delta = _media(j.loc[opcion, "yardas"]) - _media(j.loc[base, "yardas"])
+        p_op = _media(j.loc[opcion, "presion"])
+        p_base = _media(j.loc[base, "presion"])
+        y_op = _media(j.loc[opcion, "yardas"])
+        y_base = _media(j.loc[base, "yardas"])
+        mult = 1.0 if math.isnan(p_op) or math.isnan(p_base) or p_base == 0 else p_op / p_base
+        delta = 0.0 if math.isnan(y_op) or math.isnan(y_base) else y_op - y_base
         return mult, delta
 
     return {
@@ -314,7 +330,9 @@ def _claves_jugada(df: pd.DataFrame) -> np.ndarray:
     return df["gameId"].to_numpy("int64") * 100_000 + df["playId"].to_numpy("int64")
 
 
-def _estrella(g: pd.DataFrame, star: int, roles: pd.DataFrame, nombre) -> dict:
+def _estrella(g: pd.DataFrame, star: int | None, roles: pd.DataFrame, nombre) -> dict:
+    if star is None:
+        return {"nombre": "Sin amenaza registrada", "con": None, "sin": None}
     rush = roles.loc[(roles["rol"] == "R") & (roles["nflId"] == star)]
     con = np.isin(_claves_jugada(g), _claves_jugada(rush))
 
@@ -328,17 +346,24 @@ def _estrella(g: pd.DataFrame, star: int, roles: pd.DataFrame, nombre) -> dict:
     return {"nombre": nombre(star), "con": grupo(g.loc[con]), "sin": grupo(g.loc[~con])}
 
 
-def _repeticion(g: pd.DataFrame, star: int, posiciones: pd.DataFrame, nombre) -> dict:
+def _repeticion(g: pd.DataFrame, star: int | None, posiciones: pd.DataFrame, nombre) -> dict:
     """Una jugada real: presión de la amenaza #1 con Reloj entre 2.2 y 2.8 s (prefiere sack)."""
     lo, hi = RELOJ_REPETICION_F
     p = g.loc[g["presion"] & g["x0"].notna()]
     opciones = (
-        p.loc[(p["presionador"] == star) & p["reloj_f"].between(lo, hi)],
-        p.loc[p["presionador"] == star],
+        p.loc[(p["presionador"] == star) & p["reloj_f"].between(lo, hi)] if star is not None else p.iloc[0:0],
+        p.loc[p["presionador"] == star] if star is not None else p.iloc[0:0],
         p.loc[p["reloj_f"].between(lo, hi)],
         p,
     )
-    cand = next(c for c in opciones if len(c))
+    cand = next((c for c in opciones if len(c)), None)
+    if cand is None:
+        return {
+            "descripcion": f"{nombre(star) if star is not None else 'Defensa'} · sin jugadas con presión registradas",
+            "reloj_s": 0.0,
+            "fin_s": 0.0,
+            "frames": [],
+        }
     cand = cand.assign(_no_sack=~cand["sack"], _dist=(cand["reloj_f"] - (lo + hi) / 2).abs())
     jug = cand.sort_values(["_no_sack", "_dist", "gameId", "playId"]).iloc[0]
 
@@ -389,8 +414,15 @@ def cargar() -> None:
         D = _defensas(j, d)
         O = _ofensivas(j, d)
         Z = pd.DataFrame({
-            eq: {"ts": dv["ts_f"] / 10, "gana": dv["gana"], "pa_delta": dv["pa_delta"], "tercer": dv["tercer"],
-                 "blitz": dv["blitz"], "no_zona": dv["no_zona"], "fuerte_frac": dv["fuerte_frac"]}
+            eq: {
+                "ts": None if dv["ts_f"] is None else dv["ts_f"] / 10,
+                "gana": dv["gana"],
+                "pa_delta": dv["pa_delta"],
+                "tercer": dv["tercer"],
+                "blitz": dv["blitz"],
+                "no_zona": dv["no_zona"],
+                "fuerte_frac": dv["fuerte_frac"],
+            }
             for eq, dv in D.items()
         }).T.astype("float64")
         ef = _efectos(j)
@@ -409,24 +441,33 @@ def cargar() -> None:
             repeticion_c[rv] = _repeticion(g, dv["amenaza"], d.posiciones, nombre)
 
             ts_f, tsl_f = dv["ts_f"], L["ts_f"]
-            nivel = "rojo" if ts_f < tsl_f - MARGEN_NIVEL_F else "verde" if ts_f > tsl_f + MARGEN_NIVEL_F else "amarillo"
-            amenaza = {"nombre": nombre(dv["amenaza"]),
-                       "gana_pct": None if dv["gana"] is None else _dec(dv["gana"]),
-                       "lado": dv["lado_amenaza"]}
+            if ts_f is None or tsl_f is None:
+                nivel = "amarillo"
+            else:
+                nivel = "rojo" if ts_f < tsl_f - MARGEN_NIVEL_F else "verde" if ts_f > tsl_f + MARGEN_NIVEL_F else "amarillo"
+            amenaza = {
+                "nombre": nombre(dv["amenaza"]) if dv["amenaza"] is not None else "Sin amenaza registrada",
+                "gana_pct": None if dv["gana"] is None else _dec(dv["gana"]),
+                "lado": dv["lado_amenaza"],
+            }
             contexto = {"presion": [_pct(dv["presion"]), _pct(L["presion"])],
                         "tercer_down": [_pct(dv["tercer"]), _pct(L["tercer"])],
                         "blitz": [_pct(dv["blitz"]), _pct(L["blitz"])]}
             for of in equipos:
                 if of == rv:
                     continue
-                o = O[of]
+                o = O.get(of)
+                if o is None:
+                    continue
                 bloq = _bloqueador(o, dv["lado_amenaza"], nombre)
+                ts_val = 0.0 if ts_f is None else ts_f / 10
+                tsl_val = 0.0 if tsl_f is None else tsl_f / 10
                 partido_c[(of, rv)] = {
-                    "tiempo_seguro_s": ts_f / 10,
-                    "tiempo_seguro_liga_s": tsl_f / 10,
+                    "tiempo_seguro_s": ts_val,
+                    "tiempo_seguro_liga_s": tsl_val,
                     "nivel": nivel,
                     "qb": {"nombre": nombre(o["qb"]), "lanzamiento_s": o["lanz_d"] / 10,
-                           "diferencia_s": (o["lanz_d"] - ts_f) / 10},
+                           "diferencia_s": round(o["lanz_d"] / 10 - ts_val, 1) if ts_f is not None else 0.0},
                     "lados": dict(dv["lados"]),
                     "amenaza": dict(amenaza),
                     "bloqueador": bloq,
@@ -455,13 +496,13 @@ def _control(j, L, D, O, estrella_c, situacion_c, nombre) -> dict:
     return {
         "jugadas": L["n"],
         "presion_liga": _pct(L["presion"]),
-        "ts_liga": L["ts_f"] / 10,
+        "ts_liga": None if L["ts_f"] is None else L["ts_f"] / 10,
         "acuerdo_pff": _dec(L["validacion"] * 100),
-        "cle_ts": None if cle is None else cle["ts_f"] / 10,
-        "cle_amenaza": None if cle is None else nombre(cle["amenaza"]),
+        "cle_ts": None if cle is None or cle["ts_f"] is None else cle["ts_f"] / 10,
+        "cle_amenaza": None if cle is None or cle["amenaza"] is None else nombre(cle["amenaza"]),
         "cle_gana": None if cle is None or cle["gana"] is None else _dec(cle["gana"]),
         "cle_lado": None if cle is None else cle["lado_amenaza"],
-        "no_ts": None if no is None else no["ts_f"] / 10,
+        "no_ts": None if no is None or no["ts_f"] is None else no["ts_f"] / 10,
         "cle_con": estrella_c.get("CLE", {}).get("con"),
         "cle_sin": estrella_c.get("CLE", {}).get("sin"),
         "liga_12": _pct(L["sit"]["a"][0]),
